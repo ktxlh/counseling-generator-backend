@@ -6,9 +6,6 @@ from flask_restful import Api, Resource, reqparse
 
 from models import Generator, Predictor
 
-SAVE_PATH = "/data/shsu70/test_flask_outputs"
-PRED_THRESHOLD = 0.5
-
 ###############################################################################
 #                               Load models                                   #
 ###############################################################################
@@ -19,19 +16,22 @@ generator = Generator('/data/shsu70/testing/generator')  # TODO change to genera
 ###############################################################################
 #                        Initialize data variables                            #
 ###############################################################################
+# Constants
+SAVE_PATH = "/data/shsu70/test_flask_outputs"
+PRED_THRESHOLD = 0.5
+DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
+PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
+CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
+
+# Mutables
 client_id, listener_id = "default_client", "default_listener"
+dialog_df = pd.DataFrame.from_dict({k: [] for k in DIALOG_COLUMNS})
+pred_df = pd.DataFrame.from_dict({k: [] for k in PRED_COLUMNS})
+click_df = pd.DataFrame.from_dict({k: [] for k in CLICK_COLUMNS})
 
-dialog_columns = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
-pred_columns = ['code', 'score', 'last_utterance_index', 'text']
-click_columns = ['user_id', 'is_listener', 'pred_index', 'time']
-
-def reset_df():
-    return [
-        pd.DataFrame.from_dict({k: [] for k in columns}) 
-        for columns in [dialog_columns, pred_columns, click_columns]
-    ]
-
-dialog_df, pred_df, click_df = reset_df()
+def reset_df(dfs):
+    for df in dfs:
+        df = df[0:0]
 
 
 ###############################################################################
@@ -45,11 +45,13 @@ class LogUser(Resource):
         """Record who are involved in this conversation
         """
         try:
+            global client_id, listener_id
+
             args = user_parser.parse_args()
             client_id, listener_id = args['client_id'], args['listener_id']
         
         except Exception as e:
-            return e, 500
+            return str(e), 500
 
         return 200
 
@@ -61,12 +63,19 @@ message_parser.add_argument('time', type=str, help="time sent")
 class AddMessage(Resource):
     def post(self):
         """Add a new utterance to backend
+
+        Returns:
+            predictions (List[Tuple[int, str, str]]): list of tuples of (pred_index, MITI code, next utterance)
+                The pred_index is used for LogClick described below. 
         """
         try:
+            global message_parser, dialog_df, pred_df, listener_id, client_id
+
             args = message_parser.parse_args()
             user_id = listener_id if args["is_listener"] else client_id
-            new_row = [user_id, args["is_listener"], args["utterancee"], args["time"], [], []]
-            dialog_df.loc[len(dialog_df.index)] = new_row
+            new_row = [user_id, args["is_listener"], args["utterance"], args["time"], [], []]
+            last_utterance_index = len(dialog_df.index)
+            dialog_df.loc[last_utterance_index] = new_row
 
             scores = predictor.predict(dialog_df)
             scores = list(filter(lambda x: x[1] > PRED_THRESHOLD, scores))
@@ -75,10 +84,15 @@ class AddMessage(Resource):
 
             generations = generator.predict(dialog_df, codes)
 
-        except Exception as e:
-            return e, 500
+            predictions = []
+            for i, (code, utterance) in enumerate(generations):
+                predictions.append((len(pred_df), code, utterance))
+                pred_df.at[len(pred_df)] = [code, scores[i][1], last_utterance_index, utterance] 
 
-        return generations, 200
+        except Exception as e:
+            return str(e), 500
+
+        return predictions, 200
 
 
 
@@ -91,13 +105,15 @@ class LogClick(Resource):
         """Record when, who, and what is clicked
         """
         try:
+            global click_parser, click_df, listener_id, client_id
+
             args = click_parser.parse_args()
             user_id = listener_id if args["is_listener"] else client_id
             new_row = [user_id, args["is_listener"], args["pred_index"], args["time"]]
             click_df.loc[len(click_df)] = new_row
 
         except Exception as e:
-            return e, 500
+            return str(e), 500
 
         return 200
 
@@ -107,18 +123,20 @@ class DumpLogs(Resource):
         """Store dialog, prediction, and click logs to file and clear the variables
         """
         try:
+            global dialog_df, pred_df, click_df, client_id
+
             now = datetime.now()
             date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
             prefix = f"{SAVE_PATH}/{client_id}_{date_time}_"
 
-            dialog_df.to_csv(prefix + "dialog.csv")
-            pred_df.to_csv(prefix + "pred.csv")
-            click_df.to_csv(prefix + "click.csv")
+            dialog_df.to_csv(prefix + "dialog.csv", index=False)
+            pred_df.to_csv(prefix + "pred.csv", index=False)
+            click_df.to_csv(prefix + "click.csv", index=False)
 
-            dialog_df, pred_df, click_df = reset_df()
+            reset_df([dialog_df, pred_df, click_df])
 
         except Exception as e:
-            return e, 500
+            return str(e), 500
 
         return 200
 
@@ -132,6 +150,7 @@ api.add_resource(LogUser, '/loguser')
 api.add_resource(AddMessage, '/addmessage')
 api.add_resource(LogClick, '/logclick')
 api.add_resource(DumpLogs, '/dumplogs')
+
 
 if __name__ == '__main__':
     app.run(debug=True)

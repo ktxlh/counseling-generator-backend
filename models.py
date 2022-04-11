@@ -73,12 +73,12 @@ class Predictor:
         )["input_ids"]
         
         scores = []
-        if index - CONTEXT_LEN >= 0:
-            input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index - CONTEXT_LEN:]["generator_input_ids"].tolist() for y in x]
+        if index - CONTEXT_LEN + 1 >= 0:
+            input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index - CONTEXT_LEN + 1:]["predictor_input_ids"].tolist() for y in x]
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
             for code in Predictor.MODEL_NAMES.keys():
                 logits = self.models[code](input_ids.cuda()).logits[0, :]
-                score = torch.nn.functional.softmax(logits)[1].item()
+                score = torch.nn.functional.softmax(logits, dim=0)[1].item()
                 score = score * random() * 2 # DEBUG TODO remove this
                 scores.append((code, score))
         return scores
@@ -110,7 +110,7 @@ class Generator:
             return_dict = True,
         )
         self.model.eval()
-        # self.model.cuda()
+        self.model.cuda()
         
 
     @torch.no_grad()
@@ -126,7 +126,8 @@ class Generator:
         """
         index = len(df) - 1
         speaker_token = (LISTENER_TOKEN if df.at[index, 'is_listener'] else CLIENT_TOKEN)
-        df.at[index, 'utterance'] = speaker_token + df.at[index, 'utterance']
+        if not df.at[index, 'utterance'].startswith(speaker_token):
+            df.at[index, 'utterance'] = speaker_token + df.at[index, 'utterance']
         df.at[index, 'generator_input_ids'] = self.tokenizer(
             df.at[index, 'utterance'], 
             max_length = Generator.MAX_LEN,
@@ -137,19 +138,18 @@ class Generator:
 
         utterances = []
         if len(codes) > 0:
-            input_ids = df.at[index, 'generator_input_ids'] + [-1,]  # placeholder for a code
+            input_ids = [y for x in df.iloc[index - CONTEXT_LEN + 1:]["generator_input_ids"].tolist() for y in x] + [-1,]  # placeholder for a code
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
             for code in codes:
                 input_ids[0, -1] = self.CODE_TOKEN_IDS[code]
                 # Decoding methods: https://huggingface.co/blog/how-to-generate
                 sample_output = self.model.generate(
-                    # input_ids.cuda(), 
-                    input_ids,
+                    input_ids.cuda(), 
                     do_sample=True, 
                     max_length=50, 
                     top_p=0.95, 
                     top_k=50
                 )
-                utterance = self.tokenizer.decode(sample_output[0, input_ids.shape[1]], skip_special_tokens=True)
+                utterance = self.tokenizer.decode(sample_output[0, input_ids.shape[1]:], skip_special_tokens=True)
                 utterances.append((code, utterance))
         return utterances
