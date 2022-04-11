@@ -21,7 +21,4 @@ For the first time you use the env, run this inside (`counseling-generator-backe
 pip install -r requirements.txt
 ```
 
-After you installed anything new via `pip`, replace the `requirements.txt` with a new one via:
-```
-pip list --format=freeze > requirements.txt
-```
+After you installed anything new, please add it to `requirements.txt` manually following the same format.
