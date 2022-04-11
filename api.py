@@ -1,8 +1,10 @@
-from flask import Flask
-from flask_restful import reqparse, abort, Api, Resource
-from models import Predictor, Generator
-import pandas as pd
 from datetime import datetime
+
+import pandas as pd
+from flask import Flask
+from flask_restful import Api, Resource, reqparse
+
+from models import Generator, Predictor
 
 SAVE_PATH = "/data/shsu70/test_flask_outputs"
 PRED_THRESHOLD = 0.5
@@ -11,7 +13,7 @@ PRED_THRESHOLD = 0.5
 #                               Load models                                   #
 ###############################################################################
 predictor = Predictor('/data/shsu70/testing/predictors/')  # TODO change to predictors
-generator = Generator('/data/shsu70/models/microsoft-DialoGPT-small-finetuned-7cups-321606/checkpoint-5200')  # TODO change model path?
+generator = Generator('/data/shsu70/testing/generator')  # TODO change to generator
 
 
 ###############################################################################
@@ -42,8 +44,14 @@ class LogUser(Resource):
     def post(self):
         """Record who are involved in this conversation
         """
-        args = user_parser.parse_args()
-        client_id, listener_id = args['client_id'], args['listener_id']
+        try:
+            args = user_parser.parse_args()
+            client_id, listener_id = args['client_id'], args['listener_id']
+        
+        except Exception as e:
+            return e, 500
+
+        return 200
 
 
 message_parser = reqparse.RequestParser()
@@ -54,17 +62,23 @@ class AddMessage(Resource):
     def post(self):
         """Add a new utterance to backend
         """
-        args = message_parser.parse_args()
-        user_id = listener_id if args["is_listener"] else client_id
-        new_row = [user_id, args["is_listener"], args["utterancee"], args["time"], [], []]
-        dialog_df.loc[len(dialog_df.index)] = new_row
+        try:
+            args = message_parser.parse_args()
+            user_id = listener_id if args["is_listener"] else client_id
+            new_row = [user_id, args["is_listener"], args["utterancee"], args["time"], [], []]
+            dialog_df.loc[len(dialog_df.index)] = new_row
 
-        scores = predictor.predict(dialog_df)
-        scores = list(filter(lambda x: x[1] > PRED_THRESHOLD, scores))
-        scores.sort(key=lambda x: -x[1])
-        codes = [x[0] for x in scores]
+            scores = predictor.predict(dialog_df)
+            scores = list(filter(lambda x: x[1] > PRED_THRESHOLD, scores))
+            scores.sort(key=lambda x: -x[1])
+            codes = [x[0] for x in scores]
 
-        generations = generator.predict(dialog_df, codes)
+            generations = generator.predict(dialog_df, codes)
+
+        except Exception as e:
+            return e, 500
+
+        return generations, 200
 
 
 
@@ -76,10 +90,15 @@ class LogClick(Resource):
     def post(self):
         """Record when, who, and what is clicked
         """
-        args = click_parser.parse_args()
-        user_id = listener_id if args["is_listener"] else client_id
-        new_row = [user_id, args["is_listener"], args["pred_index"], args["time"]]
-        click_df.loc[len(click_df)] = new_row
+        try:
+            args = click_parser.parse_args()
+            user_id = listener_id if args["is_listener"] else client_id
+            new_row = [user_id, args["is_listener"], args["pred_index"], args["time"]]
+            click_df.loc[len(click_df)] = new_row
+
+        except Exception as e:
+            return e, 500
+
         return 200
 
 
@@ -87,23 +106,32 @@ class DumpLogs(Resource):
     def get(self):
         """Store dialog, prediction, and click logs to file and clear the variables
         """
-        now = datetime.now()
-        date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
-        prefix = f"{SAVE_PATH}/{client_id}_{date_time}_"
         try:
+            now = datetime.now()
+            date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
+            prefix = f"{SAVE_PATH}/{client_id}_{date_time}_"
+
             dialog_df.to_csv(prefix + "dialog.csv")
             pred_df.to_csv(prefix + "pred.csv")
             click_df.to_csv(prefix + "click.csv")
-            reset_df()
+
+            dialog_df, pred_df, click_df = reset_df()
+
         except Exception as e:
             return e, 500
+
         return 200
 
 
 ###############################################################################
-#                                    Main                                     #
+#                      Actually setup the Api resource                        #
 ###############################################################################
 app = Flask(__name__)
 api = Api(app)
+api.add_resource(LogUser, '/loguser')
+api.add_resource(AddMessage, '/addmessage')
+api.add_resource(LogClick, '/logclick')
+api.add_resource(DumpLogs, '/dumplogs')
+
 if __name__ == '__main__':
     app.run(debug=True)
