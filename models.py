@@ -1,9 +1,11 @@
-from typing import List, Tuple
-import pandas as pd
-from transformers import BertTokenizerFast, BertForSequenceClassification, AutoTokenizer, AutoModelForCausalLM
 import os
-import torch
 from random import random
+from typing import List, Tuple
+
+import pandas as pd
+import torch
+from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          BertForSequenceClassification, BertTokenizerFast)
 
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -49,7 +51,7 @@ class Predictor:
 
     @torch.no_grad()
     def predict(self, df: pd.DataFrame) -> List[Tuple[str, float]]:
-        """Predict the next MITI code used
+        """Predict the next MITI code used if context is long enough
 
         Args:
             df (pd.DataFrame): speaker-prefixed latest utterances 
@@ -72,21 +74,19 @@ class Predictor:
         
         scores = []
         if index - CONTEXT_LEN >= 0:
-            input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index-CONTEXT_LEN:]["generator_input_ids"].tolist() for y in x]
+            input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index - CONTEXT_LEN:]["generator_input_ids"].tolist() for y in x]
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
             for code in Predictor.MODEL_NAMES.keys():
                 logits = self.models[code](input_ids.cuda()).logits[0, :]
                 score = torch.nn.functional.softmax(logits)[1].item()
                 score = score * random() * 2 # DEBUG TODO remove this
                 scores.append((code, score))
-        else:
-            for code in enumerate(Predictor.MODEL_NAMES.keys()):
-                scores.append((code, 0.0))
         return scores
         
 
 class Generator:
     MAX_LEN = 48
+    CODE_TOKENS = [f"<|{code}|>" for code in Predictor.MODEL_NAMES.keys()]
 
     def __init__(self, model_path: str):
         """Load tokenizer and generator
@@ -97,6 +97,11 @@ class Generator:
 
         self.tokenizer = AutoTokenizer.from_pretrained('microsoft/DialoGPT-small')
         self.tokenizer.add_tokens([LISTENER_TOKEN, CLIENT_TOKEN])
+        self.tokenizer.add_tokens(Generator.CODE_TOKENS)
+        self.CODE_TOKEN_IDS = dict(zip(
+            Predictor.MODEL_NAMES.keys(), 
+            self.tokenizer.convert_tokens_to_ids(Generator.CODE_TOKENS)
+        ))
 
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
@@ -105,19 +110,19 @@ class Generator:
             return_dict = True,
         )
         self.model.eval()
-        self.model.cuda()
+        # self.model.cuda()
         
 
     @torch.no_grad()
-    def predict(self, df: pd.DataFrame, codes: List[str]) -> List[str]:
-        """Predict the next utterance
+    def predict(self, df: pd.DataFrame, codes: List[str]) -> List[Tuple[str, str]]:
+        """Predict the next utterance if given codes
 
         Args:
             df (pd.DataFrame): speaker-prefixed latest utterances 
             codes (List[str]): MITI codes to use, one for each generations
 
         Returns:
-            List[str]: generated utterances corresponding to codes
+            List[Tuple[str, str]]: codes and corresponding generated utterances
         """
         index = len(df) - 1
         speaker_token = (LISTENER_TOKEN if df.at[index, 'is_listener'] else CLIENT_TOKEN)
@@ -129,8 +134,22 @@ class Generator:
             padding = False,
             return_attention_mask = False,
         )["input_ids"]
-        
+
         utterances = []
-        for code in codes:
-            self.model()
+        if len(codes) > 0:
+            input_ids = df.at[index, 'generator_input_ids'] + [-1,]  # placeholder for a code
+            input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
+            for code in codes:
+                input_ids[0, -1] = self.CODE_TOKEN_IDS[code]
+                # Decoding methods: https://huggingface.co/blog/how-to-generate
+                sample_output = self.model.generate(
+                    # input_ids.cuda(), 
+                    input_ids,
+                    do_sample=True, 
+                    max_length=50, 
+                    top_p=0.95, 
+                    top_k=50
+                )
+                utterance = self.tokenizer.decode(sample_output[0, input_ids.shape[1]], skip_special_tokens=True)
+                utterances.append((code, utterance))
         return utterances
