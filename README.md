@@ -22,3 +22,89 @@ pip install -r requirements.txt
 ```
 
 After you installed anything new, please add it to `requirements.txt` manually following the same format.
+
+## Backend APIs
+Send all requests over http
+* All `POST` requests send arguments in **body** in **raw json** format and return values in **json** format.
+* The following demo the API at `http://localhost:5000`, but it can be hosted on any server address and port.
+* Server returns 200 when everything goes well, 500 when not. See the list of error codes [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
+* Postman I used for testing: https://www.getpostman.com/collections/c50bfe23ff6a87e0472a
+
+## Log User
+* Change the value of listener's and client's ids from the backend. This should be called before each session starts.
+* Method: `POST`
+* URL: http://localhost:5000/loguser
+* Example arguments:
+```
+{
+    "client_id": "client-id-test",
+    "listener_id": "listener-id-test"
+}
+```
+
+## Add Message
+* Whenever any user sends a message, run this to get predictions and generations, and record it on server. 
+Each generation comes with a prediction index. It will be used for the next API (Log Click) so keep it at frontend when the predictions are still clickable (see below).
+Note that when the dialog history isn't long enough (i.e. <5), it returns an empty list.
+* Method: `POST`
+* URL: http://localhost:5000/addmessage
+* Example arguments:
+```
+{
+    "is_listener": true,
+    "utterance": "How are you doing?"
+}
+```
+* Example return values:
+```
+[
+    [
+        0,
+        "PR",
+        "good, i'm bad at these"
+    ],
+    [
+        1,
+        "QUC",
+        "good u."
+    ],
+    [
+        2,
+        "RF",
+        "How How??"
+    ],
+    [
+        3,
+        "GR",
+        "Good."
+    ],
+    [
+        4,
+        "SUP",
+        "good u im trying ahhh"
+    ],
+    [
+        5,
+        "AF",
+        "how u doing"
+    ]
+]
+```
+
+## Log Click
+* Whenever the user clicks a generation, run this to record it on server.
+* Method: `POST`
+* URL: http://localhost:5000/logclick
+* Example arguments:
+```
+{
+    "is_listener": true,
+    "pred_index": 13
+}
+```
+
+## Dump Logs
+* Save all logs to files on server and clear them (including the dialog!). This should be run after each session.
+* Method: `GET`
+* URL: localhost:5000/dumplogs
+* No arguments!
