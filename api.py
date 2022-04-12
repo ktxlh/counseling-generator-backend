@@ -17,6 +17,7 @@ generator = Generator('/data/shsu70/testing/generator')  # TODO change to genera
 #                        Initialize data variables                            #
 ###############################################################################
 # Constants
+DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 SAVE_PATH = "/data/shsu70/test_flask_outputs"
 PRED_THRESHOLD = 0.5
 DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
@@ -29,9 +30,11 @@ dialog_df = pd.DataFrame.from_dict({k: [] for k in DIALOG_COLUMNS})
 pred_df = pd.DataFrame.from_dict({k: [] for k in PRED_COLUMNS})
 click_df = pd.DataFrame.from_dict({k: [] for k in CLICK_COLUMNS})
 
-def reset_df(dfs):
-    for df in dfs:
-        df = df[0:0]
+def reset_df():
+    global dialog_df, pred_df, click_df
+    dialog_df = dialog_df[0:0]
+    pred_df = pred_df[0:0]
+    click_df = click_df[0:0]
 
 
 ###############################################################################
@@ -59,7 +62,6 @@ class LogUser(Resource):
 message_parser = reqparse.RequestParser()
 message_parser.add_argument('is_listener', type=bool, help="whether the message is sent by the listener")
 message_parser.add_argument('utterance', type=str, help="the new message sent")
-message_parser.add_argument('time', type=str, help="time sent")
 class AddMessage(Resource):
     def post(self):
         """Add a new utterance to backend
@@ -73,7 +75,8 @@ class AddMessage(Resource):
 
             args = message_parser.parse_args()
             user_id = listener_id if args["is_listener"] else client_id
-            new_row = [user_id, args["is_listener"], args["utterance"], args["time"], [], []]
+            date_time = datetime.now().strftime(DATETIME_FORMAT)
+            new_row = [user_id, args["is_listener"], args["utterance"], date_time, [], []]
             last_utterance_index = len(dialog_df.index)
             dialog_df.loc[last_utterance_index] = new_row
 
@@ -99,7 +102,6 @@ class AddMessage(Resource):
 click_parser = reqparse.RequestParser()
 click_parser.add_argument('is_listener', type=bool, help="whether the click is sent by the listener")
 click_parser.add_argument('pred_index', type=int, help="index of the clicked prediction")
-click_parser.add_argument('time', type=str, help="time clicked")
 class LogClick(Resource):
     def post(self):
         """Record when, who, and what is clicked
@@ -109,7 +111,8 @@ class LogClick(Resource):
 
             args = click_parser.parse_args()
             user_id = listener_id if args["is_listener"] else client_id
-            new_row = [user_id, args["is_listener"], args["pred_index"], args["time"]]
+            date_time = datetime.now().strftime(DATETIME_FORMAT)
+            new_row = [user_id, args["is_listener"], args["pred_index"], date_time]
             click_df.loc[len(click_df)] = new_row
 
         except Exception as e:
@@ -126,14 +129,14 @@ class DumpLogs(Resource):
             global dialog_df, pred_df, click_df, client_id
 
             now = datetime.now()
-            date_time = now.strftime("%m-%d-%Y_%H-%M-%S")
+            date_time = now.strftime(DATETIME_FORMAT)
             prefix = f"{SAVE_PATH}/{client_id}_{date_time}_"
 
             dialog_df.to_csv(prefix + "dialog.csv", index=False)
             pred_df.to_csv(prefix + "pred.csv", index=False)
             click_df.to_csv(prefix + "click.csv", index=False)
 
-            reset_df([dialog_df, pred_df, click_df])
+            reset_df()
 
         except Exception as e:
             return str(e), 500
