@@ -140,16 +140,15 @@ class Generator:
         if len(codes) > 0:
             input_ids = [y for x in df.iloc[index - CONTEXT_LEN + 1:]["generator_input_ids"].tolist() for y in x] + [-1,]  # placeholder for a code
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
-            for code in codes:
-                input_ids[0, -1] = self.CODE_TOKEN_IDS[code]
-                # Decoding methods: https://huggingface.co/blog/how-to-generate
-                sample_output = self.model.generate(
-                    input_ids.cuda(), 
-                    do_sample=True, 
-                    max_length=50, 
-                    top_p=0.95, 
-                    top_k=50
-                )
-                utterance = self.tokenizer.decode(sample_output[0, input_ids.shape[1]:], skip_special_tokens=True)
-                utterances.append((code, utterance))
+            input_ids = input_ids.repeat(len(codes), 1)
+            input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for code in codes])
+            # Decoding methods: https://huggingface.co/blog/how-to-generate
+            outputs = self.model.generate(
+                input_ids.cuda(), 
+                do_sample=True, 
+                max_length=50, 
+                top_p=0.95, 
+                top_k=50
+            )
+            utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
         return utterances

@@ -40,7 +40,7 @@ def test_predictor():
         'user_id':["a", "b", "a", "b", "a","b"], 
         'is_listener':[0,1,0,1,0,1], 
         "time":["t" for _ in range(6)], 
-        'utterance':["Hi", "how r u?", "good u", "good", "why here", "for u"],
+        'utterance':["Hi", "how r u?", "good, u?", "good", "why r u here", "i wanna discuss some issue"],
         'predictor_input_ids': [[] for _ in range(6)],
         'generator_input_ids': [[] for _ in range(6)],
     })
@@ -57,7 +57,7 @@ def test_generator():
         'user_id':["a", "b", "a", "b", "a","b"], 
         'is_listener':[0,1,0,1,0,1], 
         "time":["t" for _ in range(6)], 
-        'utterance':["Hi", "how r u?", "good u", "good", "why here", "for u"],
+        'utterance':["Hi", "How are you?", "good, thx. how abt u?", "better than i deserve!", "why brings you here", "i wanna discuss some issue about my family"],
         'predictor_input_ids': [[] for _ in range(6)],
         'generator_input_ids': [[] for _ in range(6)],
     })
