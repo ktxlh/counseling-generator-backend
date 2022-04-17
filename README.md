@@ -8,7 +8,7 @@ This [cheat sheet](https://docs.conda.io/projects/conda/en/4.6.0/_downloads/52a9
 
 After installing miniconda, create an env `mi`.
 ```
-conda env create --name mi python=3.10
+conda env create --name mi python=3.9
 ```
 
 Run this to activate the env every time you work on this project.
