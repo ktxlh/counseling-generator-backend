@@ -35,7 +35,7 @@ Send all requests over http
 * All `POST` requests send arguments in **body** in **raw json** format and return values in **json** format.
 * The following demo the API at the default Flask port `http://localhost:5000`, but it can be hosted on any server address and port.
 * Server returns 200 when everything goes well, 500 when not. See the list of error codes [here](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status)
-* Postman collections I used for testing: https://www.getpostman.com/collections/c50bfe23ff6a87e0472a
+* Postman collections I used for testing: [![Run in Postman](https://run.pstmn.io/button.svg)](https://app.getpostman.com/run-collection/c50bfe23ff6a87e0472a)
 
 ### Log User
 * Change the value of listener's and client's ids from the backend. This should be called before each session starts.
