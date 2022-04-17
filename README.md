@@ -113,5 +113,5 @@ Note that when the dialog history isn't long enough (i.e. <5), it returns an emp
 ### Dump Logs
 * Save all logs to files on server and clear them (including the dialog!). This should be run after each session.
 * Method: `GET`
-* URL: localhost:5000/dumplogs
+* URL: http://localhost:5000/dumplogs
 * No arguments!
