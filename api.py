@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 
 import pandas as pd
@@ -5,6 +6,8 @@ from flask import Flask
 from flask_restful import Api, Resource, reqparse
 
 from models import Generator, Predictor
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 ###############################################################################
 #                               Load models                                   #
@@ -88,7 +91,7 @@ class AddMessage(Resource):
             generations = generator.predict(dialog_df, codes)
 
             predictions = []
-            for i, (code, utterance) in enumerate(generations):
+            for i, (code, utterance) in enumerate(zip(codes, generations)):
                 predictions.append((len(pred_df), code, utterance))
                 pred_df.at[len(pred_df)] = [code, scores[i][1], last_utterance_index, utterance] 
 

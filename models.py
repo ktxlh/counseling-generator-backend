@@ -114,7 +114,7 @@ class Generator:
         
 
     @torch.no_grad()
-    def predict(self, df: pd.DataFrame, codes: List[str]) -> List[Tuple[str, str]]:
+    def predict(self, df: pd.DataFrame, codes: List[str]) -> List[str]:
         """Predict the next utterance if given codes
 
         Args:
@@ -122,7 +122,7 @@ class Generator:
             codes (List[str]): MITI codes to use, one for each generations
 
         Returns:
-            List[Tuple[str, str]]: codes and corresponding generated utterances
+            List[str]: generated utterances corresponding to codes
         """
         index = len(df) - 1
         speaker_token = (LISTENER_TOKEN if df.at[index, 'is_listener'] else CLIENT_TOKEN)
