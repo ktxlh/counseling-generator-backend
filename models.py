@@ -1,5 +1,4 @@
 import os
-from random import random
 from typing import List, Tuple
 
 import pandas as pd
@@ -15,14 +14,14 @@ CONTEXT_LEN = 5
 class Predictor:
     MAX_LEN = 128
     MODEL_NAMES = {
-        "AF": "MI_label_Affirm",
-        "QUC": "MI_label_ClosedQuestion",
-        "GR": "MI_label_Grounding",
-        "INT": "MI_label_Introduction",
-        "QUO": "MI_label_OpenQuestion",
-        "PR": "MI_label_Persuade",
-        "RF": "MI_label_Reflection",
-        "SUP": "MI_label_Support",
+        "AF": "AF/best_model",
+        "QUC": "QUC/best_model",
+        "GR": "GR/best_model",
+        "INT": "INT/best_model",
+        "QUO": "QUO/best_model",
+        "PR": "PR/best_model",
+        "RF": "RF/best_model",
+        "SUP": "SUP/best_model",
     }
 
     def __init__(self, model_dir: str):
@@ -79,13 +78,12 @@ class Predictor:
             for code in Predictor.MODEL_NAMES.keys():
                 logits = self.models[code](input_ids.cuda()).logits[0, :]
                 score = torch.nn.functional.softmax(logits, dim=0)[1].item()
-                score = score * random() * 2 # DEBUG TODO remove this
                 scores.append((code, score))
         return scores
         
 
 class Generator:
-    MAX_LEN = 48
+    MAX_LEN = 128
     CODE_TOKENS = [f"<|{code}|>" for code in Predictor.MODEL_NAMES.keys()]
 
     def __init__(self, model_path: str):

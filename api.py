@@ -12,8 +12,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 ###############################################################################
 #                               Load models                                   #
 ###############################################################################
-predictor = Predictor('/data/shsu70/testing/predictors/')  # TODO change to predictors
-generator = Generator('/data/shsu70/testing/generator')  # TODO change to generator
+predictor = Predictor('/home/shangling/predictor/')  # TODO change to predictors
+generator = Generator('/home/shangling/testing/generator')  # TODO change to generator
 
 
 ###############################################################################
@@ -21,7 +21,7 @@ generator = Generator('/data/shsu70/testing/generator')  # TODO change to genera
 ###############################################################################
 # Constants
 DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
-SAVE_PATH = "/data/shsu70/test_flask_outputs"
+SAVE_PATH = "/home/shangling/test_flask_outputs"
 PRED_THRESHOLD = 0.5
 DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
 PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
