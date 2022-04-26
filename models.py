@@ -83,7 +83,9 @@ class Predictor:
         
 
 class Generator:
-    MAX_LEN = 128
+    MAX_LEN = 64
+    GEN_MAX_LEN = (1 + MAX_LEN) * CONTEXT_LEN + 1 + MAX_LEN # (speaker token, context) * 5, code token, target including eos_token
+
     CODE_TOKENS = [f"<|{code}|>" for code in Predictor.MODEL_NAMES.keys()]
 
     def __init__(self, model_path: str):
@@ -144,9 +146,10 @@ class Generator:
             outputs = self.model.generate(
                 input_ids.cuda(), 
                 do_sample=True, 
-                max_length=50, 
+                max_length=Generator.GEN_MAX_LEN,
                 top_p=0.95, 
-                top_k=50
+                top_k=50,
+                forced_eos_token_id=self.tokenizer.eos_token_id,
             )
             utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
         return utterances
