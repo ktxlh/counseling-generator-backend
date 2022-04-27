@@ -6,6 +6,7 @@ import torch
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BertForSequenceClassification, BertTokenizerFast)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
@@ -23,6 +24,9 @@ class Predictor:
         "RF": "RF/best_model",
         "SUP": "SUP/best_model",
     }
+    # This is the only list sorted! .keys() are not sorted!
+    CODES = list(MODEL_NAMES.keys())
+    CODES.sort()
 
     def __init__(self, model_dir: str):
         """Load tokenizer and all classifiers
@@ -45,7 +49,7 @@ class Predictor:
         }
         for model in self.models.values():
             model.eval()
-            model.cuda()
+            model.to(device)
         
 
     @torch.no_grad()
@@ -75,8 +79,8 @@ class Predictor:
         if index - CONTEXT_LEN + 1 >= 0:
             input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index - CONTEXT_LEN + 1:]["predictor_input_ids"].tolist() for y in x]
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
-            for code in Predictor.MODEL_NAMES.keys():
-                logits = self.models[code](input_ids.cuda()).logits[0, :]
+            for code in Predictor.CODES:
+                logits = self.models[code](input_ids.to(device)).logits[0, :]
                 score = torch.nn.functional.softmax(logits, dim=0)[1].item()
                 scores.append((code, score))
         return scores
@@ -85,8 +89,9 @@ class Predictor:
 class Generator:
     MAX_LEN = 64
     GEN_MAX_LEN = (1 + MAX_LEN) * CONTEXT_LEN + 1 + MAX_LEN # (speaker token, context) * 5, code token, target including eos_token
+    MAX_NEW_LEN = 20  # Extra variable to control the desired new utterance length
 
-    CODE_TOKENS = [f"<|{code}|>" for code in Predictor.MODEL_NAMES.keys()]
+    CODE_TOKENS = [f"<|{code}|>" for code in Predictor.CODES]
 
     def __init__(self, model_path: str):
         """Load tokenizer and generator
@@ -99,7 +104,7 @@ class Generator:
         self.tokenizer.add_tokens([LISTENER_TOKEN, CLIENT_TOKEN])
         self.tokenizer.add_tokens(Generator.CODE_TOKENS)
         self.CODE_TOKEN_IDS = dict(zip(
-            Predictor.MODEL_NAMES.keys(), 
+            Predictor.CODES, 
             self.tokenizer.convert_tokens_to_ids(Generator.CODE_TOKENS)
         ))
 
@@ -110,7 +115,7 @@ class Generator:
             return_dict = True,
         )
         self.model.eval()
-        self.model.cuda()
+        self.model.to(device)
         
 
     @torch.no_grad()
@@ -144,9 +149,9 @@ class Generator:
             input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for code in codes])
             # Decoding methods: https://huggingface.co/blog/how-to-generate
             outputs = self.model.generate(
-                input_ids.cuda(), 
+                input_ids.to(device), 
                 do_sample=True, 
-                max_length=Generator.GEN_MAX_LEN,
+                max_length=input_ids.shape[1] + Generator.MAX_NEW_LEN,
                 top_p=0.95, 
                 top_k=50,
                 forced_eos_token_id=self.tokenizer.eos_token_id,
