@@ -1,6 +1,7 @@
 import os
 from typing import List, Tuple
 
+import nltk
 import pandas as pd
 import torch
 from nltk.tokenize import sent_tokenize
@@ -9,6 +10,8 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
+
+nltk.download("punkt")
 
 LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
