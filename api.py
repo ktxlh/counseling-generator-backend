@@ -9,8 +9,6 @@ from flask_socketio import SocketIO, emit
 
 from models import Generator, Predictor
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
-
 Log_Format = "%(levelname)s %(asctime)s - %(message)s"
 
 logging.basicConfig(
@@ -25,7 +23,7 @@ logger = logging.getLogger()
 #                               Load models                                   #
 ###############################################################################
 base_path = "/home/shangling/"
-#base_path = "/Users/shanglinghsu/dummy_models/"
+# base_path = "/Users/shanglinghsu/dummy_models/"
 predictor = Predictor(base_path + 'predictors/')
 generator = Generator(base_path + 'generator')
 
@@ -35,7 +33,6 @@ generator = Generator(base_path + 'generator')
 # Constants
 DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 SAVE_PATH = base_path + "test_flask_outputs"
-PRED_THRESHOLD = 0.5
 DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
 PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
 CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
@@ -113,31 +110,28 @@ def add_message(is_listener, utterance):
         last_utterance_index = len(dialog_df.index)
         dialog_df.loc[last_utterance_index] = new_row
 
-        scores = predictor.predict(dialog_df)
-        scores = list(filter(lambda x: x[1] > PRED_THRESHOLD, scores))
-        scores.sort(key=lambda x: -x[1])
-        codes = [x[0] for x in scores]
+        codes, scores = predictor.predict(dialog_df)
 
         generations = generator.predict(dialog_df, codes)
 
         predictions = []
-        for i, (code, prediction) in enumerate(zip(codes, generations)):
+        for code, generation, score in zip(codes, generations, scores):
             predictions.append({
                 "pred_idx": len(pred_df), 
                 "code": code, 
-                "utterance": prediction
+                "utterance": generation
             })
-            pred_df.at[len(pred_df)] = [code, scores[i][1], last_utterance_index, prediction] 
+            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generation]
+
+        args = {
+            "is_listener": is_listener,
+            "utterance": utterance,
+            "predictions": predictions,
+        }
+        emit("new_message", args, broadcast=True)  # Send to all clients
 
     except Exception as e:
         emit("error", str(e))
-
-    args = {
-        "is_listener": is_listener,
-        "utterance": utterance,
-        "predictions": predictions,
-    }
-    emit("new_message", args, broadcast=True)  # Send to all clients
 
 
 @socketio.on("log_click")

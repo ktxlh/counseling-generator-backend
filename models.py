@@ -3,6 +3,7 @@ from typing import List, Tuple
 
 import pandas as pd
 import torch
+from nltk.tokenize import sent_tokenize
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BertForSequenceClassification, BertTokenizerFast)
 
@@ -13,6 +14,11 @@ LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
 
 class Predictor:
+    PRED_THRESHOLD = 0.5
+    MAX_NUM_PREDS = 4
+    NO_INT_THRESHOLD = 4
+    START_PRED_THRESHOLD = 2
+
     MAX_LEN = 128
     MODEL_NAMES = {
         "AF": "AF/best_model",
@@ -24,9 +30,9 @@ class Predictor:
         "RF": "RF/best_model",
         "SUP": "SUP/best_model",
     }
+
     # This is the only list sorted! .keys() are not sorted!
-    CODES = list(MODEL_NAMES.keys())
-    CODES.sort()
+    CODES = ["AF", "SUP", "PR", "QUC", "RF", "QUO", "INT", "GR"]
 
     def __init__(self, model_dir: str):
         """Load tokenizer and all classifiers
@@ -53,14 +59,15 @@ class Predictor:
         
 
     @torch.no_grad()
-    def predict(self, df: pd.DataFrame) -> List[Tuple[str, float]]:
+    def predict(self, df: pd.DataFrame) -> Tuple[List[str], List[float]]:
         """Predict the next MITI code used if context is long enough
 
         Args:
             df (pd.DataFrame): speaker-prefixed latest utterances 
 
         Returns:
-            List[Tuple[str, float]]: code and its predicted score pairs
+            List[str]: predicted codes 
+            List[float]: corresponding predicted scores
         """
         index = len(df) - 1
         speaker_token = (LISTENER_TOKEN if df.at[index, 'is_listener'] else CLIENT_TOKEN)
@@ -75,21 +82,41 @@ class Predictor:
             return_attention_mask = False,
         )["input_ids"]
         
-        scores = []
-        if index - CONTEXT_LEN + 1 >= 0:
-            input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[index - CONTEXT_LEN + 1:]["predictor_input_ids"].tolist() for y in x]
-            input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
-            for code in Predictor.CODES:
-                logits = self.models[code](input_ids.to(device)).logits[0, :]
-                score = torch.nn.functional.softmax(logits, dim=0)[1].item()
-                scores.append((code, score))
-        return scores
+        # Predict only if the dialog history (context) is long enough
+        if index < Predictor.START_PRED_THRESHOLD:
+            return [], []
+        
+        code_scores = []
+        context_start_index = max(0, index - CONTEXT_LEN + 1)
+        input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[context_start_index:]["predictor_input_ids"].tolist() for y in x]
+        input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
+        for code in Predictor.CODES:
+            logits = self.models[code](input_ids.to(device)).logits[0, :]
+            score = torch.nn.functional.softmax(logits, dim=0)[1].item()
+            code_scores.append((code, score))
+
+        return self._post_processing(index, code_scores)
+
+
+    def _post_processing(self, index: int, code_scores: List[Tuple[str, float]]) -> Tuple[List[str], List[float]]:
+        # Rule: Don't suggest Introduction/Greetings when index >= NO_INT_THRESHOLD
+        if index >= Predictor.NO_INT_THRESHOLD:
+            code_scores = list(filter(lambda x: x[0] != "INT", code_scores))
+
+        code_scores = list(filter(lambda x: x[1] > Predictor.PRED_THRESHOLD, code_scores))
+        code_scores.sort(key=lambda x: -x[1])
+        code_scores = code_scores[:Predictor.MAX_NUM_PREDS]
+
+        codes = [x[0] for x in code_scores]
+        scores = [x[1] for x in code_scores]
+
+        return codes, scores
         
 
 class Generator:
     MAX_LEN = 64
-    GEN_MAX_LEN = (1 + MAX_LEN) * CONTEXT_LEN + 1 + MAX_LEN # (speaker token, context) * 5, code token, target including eos_token
-    MAX_NEW_LEN = 20  # Extra variable to control the desired new utterance length
+    MAX_NEW_LEN = MAX_LEN  # Extra variable to control the desired new utterance length
+    MAX_NUM_SENTS = 2
 
     CODE_TOKENS = [f"<|{code}|>" for code in Predictor.CODES]
 
@@ -143,7 +170,8 @@ class Generator:
 
         utterances = []
         if len(codes) > 0:
-            input_ids = [y for x in df.iloc[index - CONTEXT_LEN + 1:]["generator_input_ids"].tolist() for y in x] + [-1,]  # placeholder for a code
+            context_start_index = max(0, index - CONTEXT_LEN + 1)
+            input_ids = [y for x in df.iloc[context_start_index:]["generator_input_ids"].tolist() for y in x] + [-1,]  # placeholder for a code
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
             input_ids = input_ids.repeat(len(codes), 1)
             input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for code in codes])
@@ -154,7 +182,21 @@ class Generator:
                 max_length=input_ids.shape[1] + Generator.MAX_NEW_LEN,
                 top_p=0.95, 
                 top_k=50,
+                length_penalty=0.9,
                 forced_eos_token_id=self.tokenizer.eos_token_id,
             )
             utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
-        return utterances
+        return self._post_processing(codes, utterances)
+
+    def _post_processing(self, codes, utterances):
+        if len(utterances) == 0:
+            return utterances
+
+        # Rule: Truncate INT and GR to first sentence
+        # Rule: Truncate other codes to first MAX_NUM_SENTS sentences
+        new_utterances = [
+            sent_tokenize(u)[0] if c in ["INT", "GR"] \
+                else " ".join(sent_tokenize(u)[:Generator.MAX_NUM_SENTS])
+            for c, u in zip(codes, utterances)
+        ]
+        return new_utterances
