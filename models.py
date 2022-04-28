@@ -11,7 +11,8 @@ from transformers import (AutoModelForCausalLM, AutoTokenizer,
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
-nltk.download("punkt")
+# Run it only for the first time.
+# nltk.download("punkt")
 
 LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
@@ -20,7 +21,7 @@ class Predictor:
     PRED_THRESHOLD = 0.5
     MAX_NUM_PREDS = 4
     NO_INT_THRESHOLD = 4
-    START_PRED_THRESHOLD = 2
+    START_PRED_THRESHOLD = 5
 
     MAX_LEN = 128
     MODEL_NAMES = {
