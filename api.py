@@ -24,8 +24,8 @@ logger = logging.getLogger()
 ###############################################################################
 #                               Load models                                   #
 ###############################################################################
-# base_path = "/home/shangling/"
-base_path = "/Users/shanglinghsu/dummy_models/"
+base_path = "/home/shangling/"
+#base_path = "/Users/shanglinghsu/dummy_models/"
 predictor = Predictor(base_path + 'predictors/')
 generator = Generator(base_path + 'generator')
 
@@ -195,4 +195,4 @@ def clear_session():
     
 
 if __name__ == '__main__':
-    socketio.run(app, debug=False, host='0.0.0.0', port=8080)
+    socketio.run(app, debug=False, host='0.0.0.0', port=8000)
