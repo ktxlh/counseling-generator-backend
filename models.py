@@ -19,7 +19,7 @@ CONTEXT_LEN = 5
 
 class Predictor:
     PRED_THRESHOLD = 0.5
-    MAX_NUM_PREDS = 4
+    MAX_NUM_PREDS = 3
     NO_INT_THRESHOLD = 4
     START_PRED_THRESHOLD = 5
 
@@ -87,7 +87,7 @@ class Predictor:
         )["input_ids"]
         
         # Predict only if the dialog history (context) is long enough
-        if index < Predictor.START_PRED_THRESHOLD:
+        if index < Predictor.START_PRED_THRESHOLD - 1:
             return [], []
         
         code_scores = []
