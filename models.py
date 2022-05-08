@@ -20,6 +20,7 @@ CONTEXT_LEN = 5
 class Predictor:
     PRED_THRESHOLD = 0.6
     MAX_NUM_PREDS = 3
+    MAX_NUM_SUGGESTIONS = 3
     NO_INT_THRESHOLD = 4
     START_PRED_THRESHOLD = 5
 
@@ -109,7 +110,6 @@ class Predictor:
 
         code_scores = list(filter(lambda x: x[1] > Predictor.PRED_THRESHOLD, code_scores))
         code_scores.sort(key=lambda x: -x[1])
-        code_scores = code_scores[:Predictor.MAX_NUM_PREDS]
 
         codes = [x[0] for x in code_scores]
         scores = [x[1] for x in code_scores]

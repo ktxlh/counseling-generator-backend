@@ -136,16 +136,20 @@ def add_message(is_listener, utterance):
 
         codes, scores = predictor.predict(dialog_df)
 
-        generations = generator.predict(dialog_df, codes)
+        generations = generator.predict(dialog_df, codes[:Predictor.MAX_NUM_PREDS])
 
         predictions = []
-        for code, generation, score in zip(codes, generations, scores):
-            predictions.append(generation)
-            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generation]
+        for i, code, score in enumerate(zip(codes, scores)):
+            if i < Predictor.MAX_NUM_PREDS:
+                predictions.append(generations[i])
+                pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
+            else:
+                pred_df.at[len(pred_df)] = [code, score, last_utterance_index, ""]
 
         args = {
             "is_listener": is_listener,
             "utterance": utterance,
+            "suggestions": codes[:Predictor.MAX_NUM_SUGGESTIONS],
             "predictions": predictions,
         }
         emit("new_message", args, broadcast=True)  # Send to all clients
