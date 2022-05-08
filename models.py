@@ -18,7 +18,7 @@ LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
 
 class Predictor:
-    PRED_THRESHOLD = 0.5
+    PRED_THRESHOLD = 0.6
     MAX_NUM_PREDS = 3
     NO_INT_THRESHOLD = 4
     START_PRED_THRESHOLD = 5
