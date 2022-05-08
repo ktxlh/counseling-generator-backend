@@ -139,7 +139,7 @@ def add_message(is_listener, utterance):
         generations = generator.predict(dialog_df, codes[:Predictor.MAX_NUM_PREDS])
 
         predictions = []
-        for i, code, score in enumerate(zip(codes, scores)):
+        for i, (code, score) in enumerate(zip(codes, scores)):
             if i < Predictor.MAX_NUM_PREDS:
                 predictions.append(generations[i])
                 pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
