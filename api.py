@@ -144,7 +144,7 @@ def add_message(is_listener, utterance):
         
         top_readable_codes = get_readable_code(code_scores[:Predictor.MAX_NUM_SUGGESTIONS])
         confident_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
-
+f
         generations = generator.predict(dialog_df, confident_code_scores[:Predictor.MAX_NUM_PREDS])
 
         predictions = []

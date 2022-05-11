@@ -101,9 +101,9 @@ class Predictor:
 
         # Rule: Don't suggest Introduction/Greetings when index >= NO_INT_THRESHOLD
         if index >= Predictor.NO_INT_THRESHOLD:
-            code_scores = list(filter(lambda (code, _): code != "INT", code_scores))
+            code_scores = list(filter(lambda code_score: code_score[0] != "INT", code_scores))
 
-        code_scores.sort(key=lambda x: -x[1])
+        code_scores.sort(key=lambda code_score: -code_score[1])
         return code_scores
         
 
