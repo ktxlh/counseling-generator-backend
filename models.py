@@ -64,15 +64,14 @@ class Predictor:
         
 
     @torch.no_grad()
-    def predict(self, df: pd.DataFrame) -> Tuple[List[str], List[float]]:
+    def predict(self, df: pd.DataFrame) -> List[Tuple[str, float]]:
         """Predict the next MITI code used if context is long enough
 
         Args:
             df (pd.DataFrame): speaker-prefixed latest utterances 
 
         Returns:
-            List[str]: predicted codes 
-            List[float]: corresponding predicted scores
+            List[Tuple(str, float)]: predicted codes and corresponding predicted scores
         """
         index = len(df) - 1
         speaker_token = (LISTENER_TOKEN if df.at[index, 'is_listener'] else CLIENT_TOKEN)
@@ -100,21 +99,12 @@ class Predictor:
             score = torch.nn.functional.softmax(logits, dim=0)[1].item()
             code_scores.append((code, score))
 
-        return self._post_processing(index, code_scores)
-
-
-    def _post_processing(self, index: int, code_scores: List[Tuple[str, float]]) -> Tuple[List[str], List[float]]:
         # Rule: Don't suggest Introduction/Greetings when index >= NO_INT_THRESHOLD
         if index >= Predictor.NO_INT_THRESHOLD:
-            code_scores = list(filter(lambda x: x[0] != "INT", code_scores))
+            code_scores = list(filter(lambda (code, _): code != "INT", code_scores))
 
-        code_scores = list(filter(lambda x: x[1] > Predictor.PRED_THRESHOLD, code_scores))
         code_scores.sort(key=lambda x: -x[1])
-
-        codes = [x[0] for x in code_scores]
-        scores = [x[1] for x in code_scores]
-
-        return codes, scores
+        return code_scores
         
 
 class Generator:
@@ -150,12 +140,12 @@ class Generator:
         
 
     @torch.no_grad()
-    def predict(self, df: pd.DataFrame, codes: List[str]) -> List[str]:
+    def predict(self, df: pd.DataFrame, code_scores: List[Tuple[str, float]]) -> List[str]:
         """Predict the next utterance if given codes
 
         Args:
             df (pd.DataFrame): speaker-prefixed latest utterances 
-            codes (List[str]): MITI codes to use, one for each generations
+            code_scores (List[Tuple[str, float]]): MITI codes to use, one for each generations, and their scores
 
         Returns:
             List[str]: generated utterances corresponding to codes
@@ -173,12 +163,12 @@ class Generator:
         )["input_ids"]
 
         utterances = []
-        if len(codes) > 0:
+        if len(code_scores) > 0:
             context_start_index = max(0, index - CONTEXT_LEN + 1)
             input_ids = [y for x in df.iloc[context_start_index:]["generator_input_ids"].tolist() for y in x] + [-1,]  # placeholder for a code
             input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
-            input_ids = input_ids.repeat(len(codes), 1)
-            input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for code in codes])
+            input_ids = input_ids.repeat(len(code_scores), 1)
+            input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for (code, _) in code_scores])
             # Decoding methods: https://huggingface.co/blog/how-to-generate
             outputs = self.model.generate(
                 input_ids.to(device), 
@@ -190,17 +180,5 @@ class Generator:
                 forced_eos_token_id=self.tokenizer.eos_token_id,
             )
             utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
-        return self._post_processing(codes, utterances)
+        return utterances
 
-    def _post_processing(self, codes, utterances):
-        if len(utterances) == 0:
-            return utterances
-
-        # Rule: Truncate INT and GR to first sentence
-        # Rule: Truncate other codes to first MAX_NUM_SENTS sentences
-        new_utterances = [
-            sent_tokenize(u)[0] if c in ["INT", "GR"] \
-                else " ".join(sent_tokenize(u)[:Generator.MAX_NUM_SENTS])
-            for c, u in zip(codes, utterances)
-        ]
-        return new_utterances

@@ -7,7 +7,7 @@ from flask import Flask
 from flask_socketio import SocketIO, emit
 
 from models import Generator, Predictor
-from utils import get_user_ids
+from utils import get_user_ids, get_readable_code
 
 Log_Format = "%(levelname)s %(asctime)s - %(message)s"
 
@@ -134,12 +134,15 @@ def add_message(is_listener, utterance):
         last_utterance_index = len(dialog_df.index)
         dialog_df.loc[last_utterance_index] = new_row
 
-        codes, scores = predictor.predict(dialog_df)
+        code_scores = predictor.predict(dialog_df)
+        
+        top_readable_codes = get_readable_code(code_scores[:Predictor.MAX_NUM_SUGGESTIONS])
+        confident_code_scores = list(filter(lambda (_, score): score > Predictor.PRED_THRESHOLD, code_scores))
 
-        generations = generator.predict(dialog_df, codes[:Predictor.MAX_NUM_PREDS])
+        generations = generator.predict(dialog_df, confident_code_scores[:Predictor.MAX_NUM_PREDS])
 
         predictions = []
-        for i, (code, score) in enumerate(zip(codes, scores)):
+        for i, (code, score) in enumerate(confident_code_scores):
             if i < Predictor.MAX_NUM_PREDS:
                 predictions.append(generations[i])
                 pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
@@ -149,7 +152,7 @@ def add_message(is_listener, utterance):
         args = {
             "is_listener": is_listener,
             "utterance": utterance,
-            "suggestions": codes[:Predictor.MAX_NUM_SUGGESTIONS],
+            "suggestions": top_readable_codes,
             "predictions": predictions,
         }
         emit("new_message", args, broadcast=True)  # Send to all clients
