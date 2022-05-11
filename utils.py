@@ -24,9 +24,13 @@ def get_user_ids(id_path):
     }
     user_ids = {**clients, **listeners}
 
-    # To ensure that we don't specify invalid chat ids
-    auth_chat_ids = set(df[df["is_listener"]]["chat_id"].tolist())
-    return user_ids, auth_chat_ids
+    chat_id_show_suggestions = {
+        chat_id: show_suggestions for chat_id, show_suggestions in zip(
+            df[df["is_listener"]]["chat_id"], df[df["is_listener"]]["show_suggestions"]
+        )
+    }
+
+    return user_ids, chat_id_show_suggestions
 
 def get_readable_code(code_scores):
     return list(map(lambda code_score: READABLE_CODES[code_score[0]], code_scores))

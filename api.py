@@ -39,7 +39,7 @@ PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
 CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
 
 # Credentials
-user_ids, auth_chat_ids = get_user_ids(ID_PATH)
+user_ids, chat_id_show_suggestions = get_user_ids(ID_PATH)
 
 # Mutables
 client_id, listener_id, current_chat_id = "default_client", "default_listener", "default_chat"
@@ -82,26 +82,32 @@ def log_user(input_chat_id, user_id):
             is_listener (bool): (if valid) whether this user is the Listener in this mock chat
     """
     try:
-        global listener_id, client_id, current_chat_id, user_ids, auth_chat_ids
+        global listener_id, client_id, current_chat_id, user_ids, chat_id_show_suggestions
 
         if user_id not in user_ids.keys():
             emit("login_response", {"valid": False})
             return
 
         is_listener, auth_chat_id = user_ids[user_id]
+        show_suggestions = False
         if is_listener:
             if input_chat_id != auth_chat_id or input_chat_id != current_chat_id:
                 emit("login_response", {"valid": False})
                 return
             listener_id = user_id
         else:
-            if input_chat_id not in auth_chat_ids:
+            if input_chat_id not in chat_id_show_suggestions.keys():
                 emit("login_response", {"valid": False})
                 return
             client_id = user_id
             current_chat_id = input_chat_id
+            show_suggestions = chat_id_show_suggestions[input_chat_id]
 
-        emit("login_response", {"valid": True, "is_listener": is_listener})
+        emit("login_response", {
+            "valid": True, 
+            "is_listener": is_listener, 
+            "show_suggestions": show_suggestions
+        })
         
         logger.info("{} logged in successfully as a {}.".format(
             user_id, "Listener" if is_listener else "Client"
