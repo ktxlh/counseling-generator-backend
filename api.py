@@ -7,7 +7,7 @@ from flask import Flask
 from flask_socketio import SocketIO, emit
 
 from models import Generator, Predictor
-from utils import get_user_ids, get_readable_code
+from utils import get_ids, get_readable_codes
 
 Log_Format = "%(levelname)s %(asctime)s - %(message)s"
 
@@ -39,7 +39,7 @@ PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
 CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
 
 # Credentials
-user_ids, chat_id_show_suggestions = get_user_ids(ID_PATH)
+user_ids, chat_ids, listener_chat_types = get_ids(ID_PATH)
 
 # Mutables
 client_id, listener_id, current_chat_id = "default_client", "default_listener", "default_chat"
@@ -82,26 +82,34 @@ def log_user(input_chat_id, user_id):
             is_listener (bool): (if valid) whether this user is the Listener in this mock chat
     """
     try:
-        global listener_id, client_id, current_chat_id, user_ids, chat_id_show_suggestions
+        global listener_id, client_id, current_chat_id, user_ids, chat_ids, listener_chat_types
 
-        if user_id not in user_ids.keys():
+        # Valid user_id?
+        if user_id not in user_ids:
             emit("login_response", {"valid": False})
             return
 
-        is_listener, auth_chat_id = user_ids[user_id]
-        show_suggestions = False
-        if is_listener:
-            if input_chat_id != auth_chat_id or input_chat_id != current_chat_id:
+        is_listener, show_suggestions = None, None
+        
+        # Listener?
+        if user_id in listener_chat_types.keys():
+            is_listener = True
+            # Assigned chat_id?
+            if input_chat_id not in listener_chat_types[user_id].keys() or input_chat_id != current_chat_id:
                 emit("login_response", {"valid": False})
                 return
             listener_id = user_id
+            show_suggestions = listener_chat_types[user_id][input_chat_id]
+        # O.w., client
         else:
-            if input_chat_id not in chat_id_show_suggestions.keys():
+            is_listener = False
+            # Any existing chat_id?
+            if input_chat_id not in chat_ids:
                 emit("login_response", {"valid": False})
                 return
             client_id = user_id
             current_chat_id = input_chat_id
-            show_suggestions = chat_id_show_suggestions[input_chat_id]
+            show_suggestions = False
 
         emit("login_response", {
             "valid": True, 
@@ -141,14 +149,18 @@ def add_message(is_listener, utterance):
         dialog_df.loc[last_utterance_index] = new_row
 
         code_scores = predictor.predict(dialog_df)
+        top_readable_codes = get_readable_codes(code_scores[:Predictor.MAX_NUM_SUGGESTIONS])
         
-        top_readable_codes = get_readable_code(code_scores[:Predictor.MAX_NUM_SUGGESTIONS])
-        confident_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
-f
-        generations = generator.predict(dialog_df, confident_code_scores[:Predictor.MAX_NUM_PREDS])
+        # Generate only if the dialog history (context) is long enough
+        top_code_scores = []
+        if last_utterance_index >= Predictor.START_PRED_THRESHOLD - 1:
+            confident_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
+            top_code_scores = confident_code_scores[:Predictor.MAX_NUM_PREDS]
+
+        generations = generator.predict(dialog_df, top_code_scores)
 
         predictions = []
-        for i, (code, score) in enumerate(confident_code_scores):
+        for i, (code, score) in enumerate(top_code_scores):
             if i < Predictor.MAX_NUM_PREDS:
                 predictions.append(generations[i])
                 pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]

@@ -88,7 +88,7 @@ class Predictor:
         
         # Predict only if the dialog history (context) is long enough
         if index < Predictor.START_PRED_THRESHOLD - 1:
-            return [], []
+            return []
         
         code_scores = []
         context_start_index = max(0, index - CONTEXT_LEN + 1)
