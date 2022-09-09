@@ -3,8 +3,7 @@
 ## Setup
 ### Install Miniconda
 
-Miniconda installer
-This [cheat sheet](https://docs.conda.io/projects/conda/en/4.6.0/_downloads/52a95608c49671267e40c689e0bc00ca/conda-cheatsheet.pdf) contains all comments I use with conda.
+This [cheat sheet](https://docs.conda.io/projects/conda/en/4.6.0/_downloads/52a95608c49671267e40c689e0bc00ca/conda-cheatsheet.pdf) contains all commands I use with conda.
 
 After installing miniconda, create an env `mi`.
 ```
