@@ -22,7 +22,8 @@ logger = logging.getLogger()
 ###############################################################################
 #                               Load models                                   #
 ###############################################################################
-base_path = "/home/shangling/"
+base_path = "/home/ubuntu/models/"
+# base_path = "/home/shangling/"
 # base_path = "/Users/shanglinghsu/dummy_models/"
 predictor = Predictor(base_path + 'predictors/')
 generator = Generator(base_path + 'generator')
@@ -95,7 +96,7 @@ def log_user(input_chat_id, user_id):
         if user_id in listener_chat_types.keys():
             is_listener = True
             # Assigned chat_id?
-            if input_chat_id not in listener_chat_types[user_id].keys() or input_chat_id != current_chat_id:
+            if input_chat_id not in listener_chat_types[user_id].keys():
                 emit("login_response", {"valid": False})
                 return
             listener_id = user_id
