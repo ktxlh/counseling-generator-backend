@@ -9,8 +9,8 @@ from transformers import AutoModelForCausalLM, BertForSequenceClassification
 
 CODES = ['AF', 'SUP', 'PR', 'QUC', 'RF', 'QUO', 'INT', 'GR']
 
-model_dir = '/data/shsu70/testing/predictors/'
-model_path = '/data/shsu70/testing/generator'
+model_dir = '/home/ubuntu/models/predictors/'
+model_path = '/home/ubuntu/models/generator'
 
 def save_dummy_models():
     print("save_dummy_models()")
@@ -64,11 +64,14 @@ def test_generator():
     generator = Generator(model_path)
     for i in range(len(df)):
         print(i)
-        utterances = generator.predict(df[:i+1], CODES if i - 5 + 1 >= 0 else [])
+        utterances = generator.predict(
+            df[:i+1], 
+            [(code, 0.5) for code in CODES] if i - 5 + 1 >= 0 else []
+        )
         print(utterances)
 
 
 if __name__ == "__main__":
     # save_dummy_models()
-    # test_predictor()
+    test_predictor()
     test_generator()
