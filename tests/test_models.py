@@ -1,4 +1,5 @@
 import sys
+from time import time
 
 # setting path
 sys.path.append('../counseling-generator-backend')
@@ -45,14 +46,16 @@ def test_predictor():
         'generator_input_ids': [[] for _ in range(6)],
     })
     predictor = Predictor(model_dir)
+    start = time()
     for i in range(len(df)):
         print(i)
         scores = predictor.predict(df[:i+1])
         print(scores)
-
+    print("duration:", time() - start)
 
 def test_generator():
     print("test_generator()")
+    start = time()
     df = pd.DataFrame.from_dict({
         'user_id':["a", "b", "a", "b", "a","b"], 
         'is_listener':[0,1,0,1,0,1], 
@@ -62,6 +65,7 @@ def test_generator():
         'generator_input_ids': [[] for _ in range(6)],
     })
     generator = Generator(model_path)
+    start = time()
     for i in range(len(df)):
         print(i)
         utterances = generator.predict(
@@ -69,7 +73,7 @@ def test_generator():
             [(code, 0.5) for code in CODES] if i - 5 + 1 >= 0 else []
         )
         print(utterances)
-
+    print("duration:", time() - start)
 
 if __name__ == "__main__":
     # save_dummy_models()
