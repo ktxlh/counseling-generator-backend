@@ -69,12 +69,11 @@ logger.info("Backend ready")
 #                                    Events                                   #
 ###############################################################################
 @socketio.on("log_user")
-def log_user(input_chat_id, user_id):
+def log_user(chat_id, user_id):
     """Record who are involved in this conversation and validate users
-    * The client must login before the listener does, or invalid.
 
     Args:
-        chat_id (str): id assigned to the user
+        chat_id (str): chat id assigned to the user
         user_id (str): id assigned to the user
 
     Emits "login_response" to the same user
@@ -96,20 +95,20 @@ def log_user(input_chat_id, user_id):
         if user_id in listener_chat_types.keys():
             is_listener = True
             # Assigned chat_id?
-            if input_chat_id not in listener_chat_types[user_id].keys():
+            if chat_id not in listener_chat_types[user_id].keys():
                 emit("login_response", {"valid": False})
                 return
             listener_id = user_id
-            show_suggestions = listener_chat_types[user_id][input_chat_id]
+            show_suggestions = listener_chat_types[user_id][chat_id]
         # O.w., client
         else:
             is_listener = False
             # Any existing chat_id?
-            if input_chat_id not in chat_ids:
+            if chat_id not in chat_ids:
                 emit("login_response", {"valid": False})
                 return
             client_id = user_id
-            current_chat_id = input_chat_id
+            current_chat_id = chat_id
             show_suggestions = False
 
         emit("login_response", {
@@ -233,4 +232,4 @@ def clear_session():
     
 
 if __name__ == '__main__':
-    socketio.run(app, debug=False, host='0.0.0.0', port=8000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=8000)
