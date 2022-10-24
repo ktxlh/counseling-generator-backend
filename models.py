@@ -8,6 +8,9 @@ from nltk.tokenize import sent_tokenize
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
                           BertForSequenceClassification, BertTokenizerFast)
 
+# Comment this line to test locally
+assert torch.cuda.is_available()
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
@@ -16,6 +19,14 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
+
+def move_dummy_to_cuda():
+    # Avoid slow first call
+    torch.ones(1).to(device)
+    print("Moved dummy tensor to cuda")
+
+if torch.cuda.is_available():
+    move_dummy_to_cuda()
 
 class Predictor:
     PRED_THRESHOLD = 0.6
