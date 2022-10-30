@@ -31,7 +31,6 @@ if torch.cuda.is_available():
 class Predictor:
     PRED_THRESHOLD = 0.6
     MAX_NUM_PREDS = 3
-    MAX_NUM_SUGGESTIONS = 3
     NO_INT_THRESHOLD = 4
     START_PRED_THRESHOLD = 5
 

@@ -1,3 +1,4 @@
+import os
 import logging
 import sys
 from datetime import datetime
@@ -39,6 +40,9 @@ DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_inpu
 PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
 CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
 
+# Create log save path
+os.makedirs(SAVE_PATH, exist_ok=True)
+
 # Credentials
 user_ids, chat_ids, listener_chat_types = get_ids(ID_PATH)
 
@@ -61,7 +65,7 @@ def reset_session():
 #                      Actually setup the Api resource                        #
 ###############################################################################
 app = Flask(__name__)
-socketio = SocketIO(app, logger=logger, engineio_logger=logger, cors_allowed_origins="*")
+socketio = SocketIO(app, logger=logger, engineio_logger=logger, cors_allowed_origins="*", ping_interval=60)
 
 logger.info("Backend ready")
 
@@ -148,30 +152,25 @@ def add_message(is_listener, utterance):
         last_utterance_index = len(dialog_df.index)
         dialog_df.loc[last_utterance_index] = new_row
 
-        code_scores = predictor.predict(dialog_df)
-        top_readable_codes = get_readable_codes(code_scores[:Predictor.MAX_NUM_SUGGESTIONS])
+        code_scores = predictor.predict(dialog_df)[:Predictor.MAX_NUM_PREDS]
         
         # Generate only if the dialog history (context) is long enough
-        top_code_scores = []
-        if last_utterance_index >= Predictor.START_PRED_THRESHOLD - 1:
-            confident_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
-            top_code_scores = confident_code_scores[:Predictor.MAX_NUM_PREDS]
+        # top_code_scores = []
+        # if last_utterance_index >= Predictor.START_PRED_THRESHOLD - 1:
+        top_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
+
+        top_readable_codes = get_readable_codes(top_code_scores)
 
         generations = generator.predict(dialog_df, top_code_scores)
 
-        predictions = []
         for i, (code, score) in enumerate(top_code_scores):
-            if i < Predictor.MAX_NUM_PREDS:
-                predictions.append(generations[i])
-                pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
-            else:
-                pred_df.at[len(pred_df)] = [code, score, last_utterance_index, ""]
+            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
 
         args = {
             "is_listener": is_listener,
             "utterance": utterance,
             "suggestions": top_readable_codes,
-            "predictions": predictions,
+            "predictions": generations,
         }
         emit("new_message", args, broadcast=True)  # Send to all clients
 
@@ -232,4 +231,4 @@ def clear_session():
     
 
 if __name__ == '__main__':
-    socketio.run(app, debug=True, host='0.0.0.0', port=8000)
+    socketio.run(app, debug=False, host='0.0.0.0', port=8000)
