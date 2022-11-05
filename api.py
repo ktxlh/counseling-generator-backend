@@ -34,11 +34,12 @@ generator = Generator(base_path + 'generator')
 ###############################################################################
 # Constants
 DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
+DATE_MICROSEC_FORMAT = "%Y-%m-%d_%H-%M-%S.%f"
 SAVE_PATH = base_path + "test_flask_outputs"
 ID_PATH = base_path + "chat_user_ids.csv"
 DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
-PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'text']
-CLICK_COLUMNS = ['user_id', 'is_listener', 'pred_index', 'time']
+PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'pred_index', 'text', 'time']
+CLICK_COLUMNS = ['last_utterance_index', 'pred_index', 'time']
 
 # Create log save path
 os.makedirs(SAVE_PATH, exist_ok=True)
@@ -147,24 +148,22 @@ def add_message(is_listener, utterance):
         global dialog_df, pred_df, listener_id, client_id
 
         user_id = listener_id if is_listener else client_id
-        date_time = datetime.now().strftime(DATETIME_FORMAT)
-        new_row = [user_id, is_listener, utterance, date_time, [], []]
+        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        new_row = [user_id, is_listener, utterance, now, [], []]
         last_utterance_index = len(dialog_df.index)
         dialog_df.loc[last_utterance_index] = new_row
 
-        code_scores = predictor.predict(dialog_df)[:Predictor.MAX_NUM_PREDS]
+        code_scores = predictor.predict(dialog_df)
         
-        # Generate only if the dialog history (context) is long enough
-        # top_code_scores = []
-        # if last_utterance_index >= Predictor.START_PRED_THRESHOLD - 1:
         top_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
 
         top_readable_codes = get_readable_codes(top_code_scores)
 
         generations = generator.predict(dialog_df, top_code_scores)
-
-        for i, (code, score) in enumerate(top_code_scores):
-            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, generations[i]]
+        
+        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        for pred_index, (code, score) in enumerate(top_code_scores):
+            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, pred_index, generations[pred_index], now]
 
         args = {
             "is_listener": is_listener,
@@ -189,9 +188,9 @@ def log_click(is_listener, index):
     try:
         global click_df, listener_id, client_id
 
-        user_id = listener_id if is_listener else client_id
-        date_time = datetime.now().strftime(DATETIME_FORMAT)
-        new_row = [user_id, is_listener, index, date_time]
+        last_utterance_index = len(dialog_df.index)
+        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        new_row = [last_utterance_index, index, now]
         click_df.loc[len(click_df)] = new_row
 
     except Exception as e:

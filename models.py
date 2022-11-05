@@ -113,7 +113,13 @@ class Predictor:
         if index >= Predictor.NO_INT_THRESHOLD:
             code_scores = list(filter(lambda code_score: code_score[0] != "INT", code_scores))
 
+        # Sort
         code_scores.sort(key=lambda code_score: -code_score[1])
+        # Filter
+        code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
+        # Truncate
+        del code_scores[Predictor.MAX_NUM_PREDS:]
+
         return code_scores
         
 
