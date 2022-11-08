@@ -208,7 +208,10 @@ def dump_logs():
         date_time = now.strftime(DATETIME_FORMAT)
         prefix = f"{SAVE_PATH}/{current_chat_id}_{date_time}_"
 
-        dialog_df.to_csv(prefix + "dialog.csv", index=False)
+        pred_df['last_utterance_index'] = pred_df['last_utterance_index'].astype(int)
+        pred_df['pred_index'] = pred_df['pred_index'].astype(int)
+
+        dialog_df.to_csv(prefix + "dialog.csv", index=True, columns=DIALOG_COLUMNS[:-2])
         pred_df.to_csv(prefix + "pred.csv", index=False)
         click_df.to_csv(prefix + "click.csv", index=False)
 
