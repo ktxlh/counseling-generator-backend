@@ -1,7 +1,7 @@
 import os
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from flask import Flask
@@ -19,6 +19,9 @@ logging.basicConfig(
                     level = logging.WARNING)
 
 logger = logging.getLogger()
+
+def get_est_now():
+    return datetime.now() - timedelta(hours=5)
 
 ###############################################################################
 #                               Load models                                   #
@@ -148,7 +151,7 @@ def add_message(is_listener, utterance):
         global dialog_df, pred_df, listener_id, client_id
 
         user_id = listener_id if is_listener else client_id
-        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        now = get_est_now().strftime(DATE_MICROSEC_FORMAT)
         new_row = [user_id, is_listener, utterance, now, [], []]
         last_utterance_index = len(dialog_df.index)
         dialog_df.loc[last_utterance_index] = new_row
@@ -161,7 +164,7 @@ def add_message(is_listener, utterance):
 
         generations = generator.predict(dialog_df, top_code_scores)
         
-        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        now = get_est_now().strftime(DATE_MICROSEC_FORMAT)
         for pred_index, (code, score) in enumerate(top_code_scores):
             pred_df.at[len(pred_df)] = [code, score, last_utterance_index, pred_index, generations[pred_index], now]
 
@@ -189,7 +192,7 @@ def log_click(is_listener, index):
         global click_df, listener_id, client_id
 
         last_utterance_index = len(dialog_df.index)
-        now = datetime.now().strftime(DATE_MICROSEC_FORMAT)
+        now = get_est_now().strftime(DATE_MICROSEC_FORMAT)
         new_row = [last_utterance_index, index, now]
         click_df.loc[len(click_df)] = new_row
 
@@ -204,9 +207,9 @@ def dump_logs():
     try:
         global dialog_df, pred_df, click_df, current_chat_id
 
-        now = datetime.now()
+        now = get_est_now()
         date_time = now.strftime(DATETIME_FORMAT)
-        prefix = f"{SAVE_PATH}/{current_chat_id}_{date_time}_"
+        prefix = f"{SAVE_PATH}/{date_time}_{current_chat_id}_"
 
         pred_df['last_utterance_index'] = pred_df['last_utterance_index'].astype(int)
         pred_df['pred_index'] = pred_df['pred_index'].astype(int)
