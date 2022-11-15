@@ -1,5 +1,7 @@
 # Counseling Generator Backend
 
+**This README is outdated; for reference only.**
+
 ## Setup
 ### Install Miniconda
 
