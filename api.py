@@ -51,7 +51,7 @@ os.makedirs(SAVE_PATH, exist_ok=True)
 user_ids, chat_ids, listener_chat_types = get_ids(ID_PATH)
 
 # Mutables
-client_id, listener_id, current_chat_id = "default_client", "default_listener", "default_chat"
+client_id, listener_id, current_chat_id = "default_client", "default_listener", "default"
 dialog_df = pd.DataFrame.from_dict({k: [] for k in DIALOG_COLUMNS})
 pred_df = pd.DataFrame.from_dict({k: [] for k in PRED_COLUMNS})
 click_df = pd.DataFrame.from_dict({k: [] for k in CLICK_COLUMNS})
@@ -59,7 +59,7 @@ click_df = pd.DataFrame.from_dict({k: [] for k in CLICK_COLUMNS})
 def reset_session():
     global dialog_df, pred_df, click_df
     global client_id, listener_id, current_chat_id
-    client_id, listener_id, current_chat_id = "default_client", "default_listener", "default_chat"
+    client_id, listener_id, current_chat_id = "default_client", "default_listener", "default"
     dialog_df = dialog_df[0:0]
     pred_df = pred_df[0:0]
     click_df = click_df[0:0]
@@ -116,8 +116,8 @@ def log_user(chat_id, user_id):
                 emit("login_response", {"valid": False})
                 return
             client_id = user_id
-            current_chat_id = chat_id
             show_suggestions = False
+        current_chat_id = chat_id
 
         emit("login_response", {
             "valid": True, 
@@ -227,7 +227,6 @@ def dump_logs():
 @socketio.on("clear_session")
 def clear_session():
     try:
-        dump_logs()
         reset_session()
         logger.info("Cleared session successfully")
 

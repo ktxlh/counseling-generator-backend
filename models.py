@@ -125,7 +125,7 @@ class Predictor:
 
 class Generator:
     MAX_LEN = 64
-    MAX_NEW_LEN = MAX_LEN  # Extra variable to control the desired new utterance length
+    MAX_NEW_LEN = 32  # Extra variable to control the desired new utterance length
     MAX_NUM_SENTS = 2
 
     CODE_TOKENS = [f"<|{code}|>" for code in Predictor.CODES]
@@ -140,6 +140,12 @@ class Generator:
         self.tokenizer = AutoTokenizer.from_pretrained('microsoft/DialoGPT-small')
         self.tokenizer.add_tokens([LISTENER_TOKEN, CLIENT_TOKEN])
         self.tokenizer.add_tokens(Generator.CODE_TOKENS)
+        bad_words = [
+            "male", "female", "man", "woman", "girl", "boy", "boyfriend", 
+            "girlfriend", "husband", "wife", "bf", "gf", "age", "old",
+            "son", "daughter", "parents", 
+        ]
+        self.bad_words_ids = [self.tokenizer.encode(w) for w in bad_words]
         self.CODE_TOKEN_IDS = dict(zip(
             Predictor.CODES, 
             self.tokenizer.convert_tokens_to_ids(Generator.CODE_TOKENS)
@@ -193,6 +199,9 @@ class Generator:
                 top_p=0.95, 
                 top_k=50,
                 length_penalty=0.9,
+                temperature=0.3,
+                repetition_penalty=1.2,
+                no_repeat_ngram_size=2,
                 forced_eos_token_id=self.tokenizer.eos_token_id,
             )
             utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
