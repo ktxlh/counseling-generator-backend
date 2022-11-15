@@ -92,6 +92,9 @@ def log_user(chat_id, user_id):
     try:
         global listener_id, client_id, current_chat_id, user_ids, chat_ids, listener_chat_types
 
+        chat_id = chat_id.lower().strip()
+        user_id = user_id.lower().strip()
+        
         # Valid user_id?
         if user_id not in user_ids:
             emit("login_response", {"valid": False})
@@ -159,20 +162,30 @@ def add_message(is_listener, utterance):
         code_scores = predictor.predict(dialog_df)
         
         top_code_scores = list(filter(lambda code_score: code_score[1] > Predictor.PRED_THRESHOLD, code_scores))
-
-        top_readable_codes = get_readable_codes(top_code_scores)
-
+        
         generations = generator.predict(dialog_df, top_code_scores)
+
+        # Don't give same generations under different codes
+        existed_gens = set()
+        deduped_code_scores, deduped_gens = [], []
+        for c, g in zip(top_code_scores, generations):
+            if g in existed_gens: continue
+            existed_gens.add(g)
+            deduped_code_scores.append(c)
+            deduped_gens.append(g)
+
         
         now = get_est_now().strftime(DATE_MICROSEC_FORMAT)
-        for pred_index, (code, score) in enumerate(top_code_scores):
-            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, pred_index, generations[pred_index], now]
+        for pred_index, (code, score) in enumerate(deduped_code_scores):
+            pred_df.at[len(pred_df)] = [code, score, last_utterance_index, pred_index, deduped_gens[pred_index], now]
+
+        readable_codes = get_readable_codes(deduped_code_scores)
 
         args = {
             "is_listener": is_listener,
             "utterance": utterance,
-            "suggestions": top_readable_codes,
-            "predictions": generations,
+            "suggestions": readable_codes,
+            "predictions": deduped_gens,
         }
         emit("new_message", args, broadcast=True)  # Send to all clients
 
