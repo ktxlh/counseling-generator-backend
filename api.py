@@ -194,11 +194,10 @@ def add_message(is_listener, utterance):
 
 
 @socketio.on("log_click")
-def log_click(is_listener, index):
+def log_click(index):
     """Record when, who, and what is clicked
 
     Args:
-        is_listener (bool): whether the click is sent by the listener
         index (int): index of the clicked prediction (0-indexed)
     """
     try:
