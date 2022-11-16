@@ -198,7 +198,7 @@ class Generator:
                 max_length=input_ids.shape[1] + Generator.MAX_NEW_LEN,
                 top_p=0.95, 
                 top_k=50,
-                length_penalty=0.7,
+                length_penalty=0.4,
                 temperature=0.2,
                 repetition_penalty=1.2,
                 no_repeat_ngram_size=2,
