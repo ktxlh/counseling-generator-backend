@@ -6,12 +6,12 @@ import pandas as pd
 import torch
 from nltk.tokenize import sent_tokenize
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
+                          AutoModelForSequenceClassification,
                           BertForSequenceClassification, BertTokenizerFast)
 
 # Comment this line to test locally
 assert torch.cuda.is_available()
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 # Run it only for the first time.
@@ -20,13 +20,12 @@ os.environ["TOKENIZERS_PARALLELISM"] = "true"
 LISTENER_TOKEN, CLIENT_TOKEN = '<|listener|>', '<|client|>'
 CONTEXT_LEN = 5
 
-def move_dummy_to_cuda():
-    # Avoid slow first call
-    torch.ones(1).to(device)
-    print("Moved dummy tensor to cuda")
-
+# Avoid slow first GPU call
 if torch.cuda.is_available():
-    move_dummy_to_cuda()
+    for i in range(3):
+        device = torch.device(f"cuda:{i}")
+        torch.ones(1).to(device)
+    print("Moved dummy tensor(s) to cuda")
 
 class Predictor:
     PRED_THRESHOLD = 0.6
@@ -60,6 +59,7 @@ class Predictor:
         self.tokenizer.add_tokens([LISTENER_TOKEN, CLIENT_TOKEN])
         self.CLS_TOKEN_ID = self.tokenizer.convert_tokens_to_ids(self.tokenizer.cls_token)
 
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.models = {
             code: BertForSequenceClassification.from_pretrained(
                 os.path.join(model_dir, model_name),
@@ -70,7 +70,7 @@ class Predictor:
         }
         for model in self.models.values():
             model.eval()
-            model.to(device)
+            model.to(self.device)
         
 
     @torch.no_grad()
@@ -105,7 +105,7 @@ class Predictor:
         input_ids = [self.CLS_TOKEN_ID,] + [y for x in df.iloc[context_start_index:]["predictor_input_ids"].tolist() for y in x]
         input_ids = torch.tensor(input_ids).view(1, -1)  # torch.LongTensor of shape (batch_size, sequence_length)
         for code in Predictor.CODES:
-            logits = self.models[code](input_ids.to(device)).logits[0, :]
+            logits = self.models[code](input_ids.to(self.device)).logits[0, :]
             score = torch.nn.functional.softmax(logits, dim=0)[1].item()
             code_scores.append((code, score))
 
@@ -151,6 +151,7 @@ class Generator:
             self.tokenizer.convert_tokens_to_ids(Generator.CODE_TOKENS)
         ))
 
+        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
             output_attentions = False,
@@ -158,7 +159,7 @@ class Generator:
             return_dict = True,
         )
         self.model.eval()
-        self.model.to(device)
+        self.model.to(self.device)
         
 
     @torch.no_grad()
@@ -193,7 +194,7 @@ class Generator:
             input_ids[:, -1] = torch.LongTensor([self.CODE_TOKEN_IDS[code] for (code, _) in code_scores])
             # Decoding methods: https://huggingface.co/blog/how-to-generate
             outputs = self.model.generate(
-                input_ids.to(device), 
+                input_ids.to(self.device), 
                 do_sample=True, 
                 max_length=input_ids.shape[1] + Generator.MAX_NEW_LEN,
                 top_p=0.95, 
@@ -207,3 +208,37 @@ class Generator:
             utterances = self.tokenizer.batch_decode(outputs[:, input_ids.shape[1]:], skip_special_tokens=True)
         return utterances
 
+
+class Guard:
+    def __init__(self, model_dir: str):
+        model_name = "finetuned_mh_BERT_epoch_0_IP_hatebert_4.model"
+        self.tokenizer = AutoTokenizer.from_pretrained("GroNLP/hateBERT", do_lower_case=True)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            "GroNLP/hateBERT",
+            num_labels = 2,
+            output_attentions = False,
+            output_hidden_states = False,
+        )
+        model.load_state_dict(torch.load(
+            os.path.join(model_dir, model_name), 
+            map_location=torch.device('cpu'))
+        )
+
+        self.device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+        model.to(self.device)
+        self.model = model
+
+    @torch.no_grad()
+    def predict(self, utterances: List[str]):
+        if len(utterances) == 0: return []
+        inputs = self.tokenizer(
+            utterances, 
+            return_tensors="pt",
+            max_length = Generator.MAX_NEW_LEN,
+            truncation = True,
+            padding = True,
+        )
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        outputs = self.model(**inputs)
+        blacklisted = torch.argmax(outputs.logits, axis=1).cpu().tolist()
+        return blacklisted

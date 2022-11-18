@@ -7,7 +7,7 @@ import pandas as pd
 from flask import Flask
 from flask_socketio import SocketIO, emit
 
-from models import Generator, Predictor
+from models import Generator, Predictor, Guard
 from utils import get_ids, get_readable_codes
 
 Log_Format = "%(levelname)s %(asctime)s - %(message)s"
@@ -31,6 +31,7 @@ base_path = "/home/ubuntu/models/"
 # base_path = "/Users/shanglinghsu/dummy_models/"
 predictor = Predictor(base_path + 'predictors/')
 generator = Generator(base_path + 'generator')
+guard = Guard(base_path)
 
 ###############################################################################
 #                        Initialize data variables                            #
@@ -38,7 +39,7 @@ generator = Generator(base_path + 'generator')
 # Constants
 DATETIME_FORMAT = "%Y-%m-%d_%H-%M-%S"
 DATE_MICROSEC_FORMAT = "%Y-%m-%d_%H-%M-%S.%f"
-SAVE_PATH = base_path + "test_flask_outputs"
+SAVE_PATH = base_path + "flask_outputs"
 ID_PATH = base_path + "chat_user_ids.csv"
 DIALOG_COLUMNS = ['user_id', 'is_listener', 'utterance', 'time', 'predictor_input_ids', 'generator_input_ids']
 PRED_COLUMNS = ['code', 'score', 'last_utterance_index', 'pred_index', 'text', 'time']
@@ -165,11 +166,13 @@ def add_message(is_listener, utterance):
         
         generations = generator.predict(dialog_df, top_code_scores)
 
+        blacklisted = guard.predict(generations)
+
         # Don't give same generations under different codes
         existed_gens = set()
         deduped_code_scores, deduped_gens = [], []
-        for c, g in zip(top_code_scores, generations):
-            if g in existed_gens: continue
+        for c, g, b in zip(top_code_scores, generations, blacklisted):
+            if g in existed_gens or b == 1: continue
             existed_gens.add(g)
             deduped_code_scores.append(c)
             deduped_gens.append(g)
