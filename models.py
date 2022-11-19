@@ -151,7 +151,7 @@ class Generator:
             self.tokenizer.convert_tokens_to_ids(Generator.CODE_TOKENS)
         ))
 
-        self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
             output_attentions = False,
@@ -199,8 +199,8 @@ class Generator:
                 max_length=input_ids.shape[1] + Generator.MAX_NEW_LEN,
                 top_p=0.95, 
                 top_k=50,
-                length_penalty=0.4,
-                temperature=0.2,
+                length_penalty=0.5,
+                temperature=0.4,
                 repetition_penalty=1.2,
                 no_repeat_ngram_size=2,
                 forced_eos_token_id=self.tokenizer.eos_token_id,
@@ -224,7 +224,7 @@ class Guard:
             map_location=torch.device('cpu'))
         )
 
-        self.device = torch.device("cuda:2" if torch.cuda.is_available() else "cpu")
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         model.to(self.device)
         self.model = model
 
