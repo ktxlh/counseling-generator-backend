@@ -247,6 +247,16 @@ def clear_session():
 
     except Exception as e:
         emit("error", str(e))
+
+
+@socketio.on("is_typing")
+def is_typing(is_typing, is_listener):
+    print(is_typing, is_listener)
+    args = {
+        "is_typing": is_typing,
+        "is_listener": is_listener,
+    }
+    emit("is_typing", args, broadcast=True)
     
 
 if __name__ == '__main__':
