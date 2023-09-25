@@ -1,4 +1,5 @@
 import os
+import dotenv
 import logging
 import sys
 from datetime import datetime, timedelta
@@ -23,12 +24,13 @@ logger = logging.getLogger()
 def get_est_now():
     return datetime.now() - timedelta(hours=5)
 
+# Load environment variables from .env file into os.environ
+dotenv.load_dotenv()
+
 ###############################################################################
 #                               Load models                                   #
 ###############################################################################
-base_path = "/home/ubuntu/models/"
-# base_path = "/home/shangling/"
-# base_path = "/Users/shanglinghsu/dummy_models/"
+base_path = os.environ.get('COUNSELING_BASE_PATH') # model base path
 predictor = Predictor(base_path + 'predictors/')
 generator = Generator(base_path + 'generator')
 guard = Guard(base_path)
